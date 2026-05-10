@@ -156,61 +156,60 @@
     }
 
     /* ── ElevenLabs widget ── */
+    /* Hide default ElevenLabs widget — we use our own button */
     elevenlabs-convai {
       --el-color-primary: #f5a623;
       --el-color-primary-foreground: #000000;
-      display: block;
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 1px;
+      height: 1px;
+    }
+
+    /* One-click Start Call button */
+    .start-call-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: #f5a623;
+      color: #000;
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+      padding: 16px 36px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 0 30px rgba(245,166,35,0.3);
+    }
+
+    .start-call-btn:hover  { background: #e8960f; transform: translateY(-2px); }
+    .start-call-btn:active { transform: translateY(0); }
+    .start-call-btn .mic   { font-size: 1.3rem; }
+
+    .start-call-btn.calling {
+      background: #22c55e;
+      box-shadow: 0 0 30px rgba(34,197,94,0.4);
+      animation: pulse-btn 1.5s infinite;
+    }
+
+    .start-call-btn.calling:hover { background: #16a34a; }
+
+    @keyframes pulse-btn {
+      0%,100% { box-shadow: 0 0 30px rgba(34,197,94,0.4); }
+      50%      { box-shadow: 0 0 50px rgba(34,197,94,0.7); }
     }
 
     /* ── Features ── */
     .features {
-      max-width: 900px;
+      max-width: 680px;
       margin: 0 auto 44px;
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 16px;
-      align-items: center;
-    }
-
-    .feat-agent {
-      background: #161616;
-      border: 1px solid rgba(245,166,35,0.4);
-      border-radius: 8px;
-      padding: 22px 18px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      transition: border-color 0.25s, transform 0.25s;
-    }
-
-    .feat-agent:hover { border-color: #f5a623; transform: translateY(-2px); }
-
-    .feat-agent .ico { font-size: 1.5rem; display: block; }
-    .feat-agent h3 { font-size: 0.84rem; font-weight: 700; color: #fff; }
-    .feat-agent p  { font-size: 0.78rem; color: #6b7280; line-height: 1.55; }
-
-    .feat-agent .call-btn {
-      margin-top: 6px;
-      background: #f5a623;
-      color: #000;
-      font-weight: 800;
-      font-size: 0.75rem;
-      padding: 7px 16px;
-      border-radius: 4px;
-      letter-spacing: 0.3px;
-    }
-
-    /* hide ElevenLabs default floating widget shell; keep it functional */
-    elevenlabs-convai {
-      position: fixed;
-      bottom: -9999px;
-      right: -9999px;
-      visibility: hidden;
     }
 
     .feat {
@@ -307,18 +306,102 @@
 
   <p class="sub">Ask anything about fall protection, PPE, standards and Karam products. Powered by our complete technical knowledge base.</p>
 
+  <!-- Agent card -->
+  <div class="card">
+    <div class="card-head">
+      <div class="avatar">🛡️</div>
+      <div>
+        <div class="agent-name">MR Solve</div>
+        <div class="status"><span class="dot"></span> Online — Industrial Technical Safety Expert</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="hint">Click once to connect — then say <strong style="color:#f5a623">Hello Solve</strong> to activate</p>
+
+      <!-- Hidden widget — triggered programmatically -->
+      <elevenlabs-convai agent-id="agent_5501kerrzqnxf9e9r9gafkhk92ya"></elevenlabs-convai>
+      <script src="https://elevenlabs.io/convai-widget/index.js" async type="text/javascript"></script>
+
+      <!-- One-click Start Call button -->
+      <button class="start-call-btn" id="startBtn" onclick="startCall()">
+        <span class="mic">🎤</span> Start a Call with MR Solve
+      </button>
+
+      <script>
+        function startCall() {
+          var btn    = document.getElementById('startBtn');
+          var widget = document.querySelector('elevenlabs-convai');
+
+          btn.disabled   = true;
+          btn.innerHTML  = '<span class="mic">⏳</span> Connecting...';
+
+          // Step 1 — click the widget toggle button (opens the panel)
+          function clickToggle() {
+            if (!widget.shadowRoot) { setTimeout(clickToggle, 200); return; }
+            var toggleBtn = widget.shadowRoot.querySelector('button');
+            if (!toggleBtn)         { setTimeout(clickToggle, 200); return; }
+            toggleBtn.click();
+            // Step 2 — after panel opens, find and click "Start a call"
+            setTimeout(clickStartCall, 600);
+          }
+
+          // Step 2 — find the "Start" button inside the opened panel
+          function clickStartCall() {
+            var shadow   = widget.shadowRoot;
+            var attempts = 0;
+            var timer    = setInterval(function() {
+              attempts++;
+              if (attempts > 20) {
+                clearInterval(timer);
+                btn.disabled  = false;
+                btn.innerHTML = '<span class="mic">🎤</span> Start a Call with MR Solve';
+                btn.classList.remove('calling');
+                return;
+              }
+              var allBtns = shadow.querySelectorAll('button');
+              for (var i = 0; i < allBtns.length; i++) {
+                var txt = allBtns[i].textContent.trim().toLowerCase();
+                if (txt.includes('start') || txt.includes('call') || txt.includes('connect')) {
+                  allBtns[i].click();
+                  clearInterval(timer);
+                  btn.innerHTML = '<span class="mic">🔴</span> Call Active — Say Hello Solve';
+                  btn.classList.add('calling');
+                  btn.onclick = endCall;
+                  btn.disabled = false;
+                  return;
+                }
+              }
+            }, 300);
+          }
+
+          clickToggle();
+        }
+
+        function endCall() {
+          var btn    = document.getElementById('startBtn');
+          var widget = document.querySelector('elevenlabs-convai');
+          // Click the widget button to end/close
+          if (widget.shadowRoot) {
+            var btns = widget.shadowRoot.querySelectorAll('button');
+            btns.forEach(function(b) {
+              var txt = b.textContent.trim().toLowerCase();
+              if (txt.includes('end') || txt.includes('stop') || txt.includes('close') || txt.includes('disconnect')) {
+                b.click();
+              }
+            });
+          }
+          btn.innerHTML = '<span class="mic">🎤</span> Start a Call with MR Solve';
+          btn.classList.remove('calling');
+          btn.onclick = startCall;
+        }
+      </script>
+    </div>
+  </div>
+
   <!-- Features -->
   <div class="features">
     <div class="feat"><span class="ico">📋</span><h3>Standards</h3><p>EN, ANSI, CSA and IS standards answered instantly.</p></div>
     <div class="feat"><span class="ico">🪢</span><h3>Product Selection</h3><p>Right harness, lanyard, SRL or lifeline for your job.</p></div>
-    <div class="feat-agent" onclick="document.getElementById('el-widget').style.visibility='visible'; document.getElementById('el-widget').style.bottom='24px'; document.getElementById('el-widget').style.right='24px'; document.getElementById('el-widget').click();">
-      <span class="ico">🎙️</span>
-      <h3>Talk to MR Solve</h3>
-      <p>Live voice conversation with your AI safety expert.</p>
-      <span class="call-btn">▶ Start a Call</span>
-    </div>
-    <elevenlabs-convai id="el-widget" agent-id="agent_5501kerrzqnxf9e9r9gafkhk92ya"></elevenlabs-convai>
-    <script src="https://elevenlabs.io/convai-widget/index.js" async type="text/javascript"></script>
     <div class="feat"><span class="ico">🏗️</span><h3>Work at Height</h3><p>Fall factors, lifeline design and rescue planning.</p></div>
     <div class="feat"><span class="ico">📄</span><h3>Tech Docs</h3><p>Backed by white papers, test reports and certificates.</p></div>
   </div>
