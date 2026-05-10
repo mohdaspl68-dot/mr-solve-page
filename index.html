@@ -164,11 +164,53 @@
 
     /* ── Features ── */
     .features {
-      max-width: 680px;
+      max-width: 900px;
       margin: 0 auto 44px;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 16px;
+      align-items: center;
+    }
+
+    .feat-agent {
+      background: #161616;
+      border: 1px solid rgba(245,166,35,0.4);
+      border-radius: 8px;
+      padding: 22px 18px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      transition: border-color 0.25s, transform 0.25s;
+    }
+
+    .feat-agent:hover { border-color: #f5a623; transform: translateY(-2px); }
+
+    .feat-agent .ico { font-size: 1.5rem; display: block; }
+    .feat-agent h3 { font-size: 0.84rem; font-weight: 700; color: #fff; }
+    .feat-agent p  { font-size: 0.78rem; color: #6b7280; line-height: 1.55; }
+
+    .feat-agent .call-btn {
+      margin-top: 6px;
+      background: #f5a623;
+      color: #000;
+      font-weight: 800;
+      font-size: 0.75rem;
+      padding: 7px 16px;
+      border-radius: 4px;
+      letter-spacing: 0.3px;
+    }
+
+    /* hide ElevenLabs default floating widget shell; keep it functional */
+    elevenlabs-convai {
+      position: fixed;
+      bottom: -9999px;
+      right: -9999px;
+      visibility: hidden;
     }
 
     .feat {
@@ -265,26 +307,18 @@
 
   <p class="sub">Ask anything about fall protection, PPE, standards and Karam products. Powered by our complete technical knowledge base.</p>
 
-  <!-- Agent card -->
-  <div class="card">
-    <div class="card-head">
-      <div class="avatar">🛡️</div>
-      <div>
-        <div class="agent-name">MR Solve</div>
-        <div class="status"><span class="dot"></span> Online — Industrial Technical Safety Expert</div>
-      </div>
-    </div>
-    <div class="card-body">
-      <p class="hint">Click the button below and start speaking — MR Solve responds instantly</p>
-      <elevenlabs-convai agent-id="agent_5501kerrzqnxf9e9r9gafkhk92ya"></elevenlabs-convai>
-      <script src="https://elevenlabs.io/convai-widget/index.js" async type="text/javascript"></script>
-    </div>
-  </div>
-
   <!-- Features -->
   <div class="features">
     <div class="feat"><span class="ico">📋</span><h3>Standards</h3><p>EN, ANSI, CSA and IS standards answered instantly.</p></div>
     <div class="feat"><span class="ico">🪢</span><h3>Product Selection</h3><p>Right harness, lanyard, SRL or lifeline for your job.</p></div>
+    <div class="feat-agent" onclick="document.getElementById('el-widget').style.visibility='visible'; document.getElementById('el-widget').style.bottom='24px'; document.getElementById('el-widget').style.right='24px'; document.getElementById('el-widget').click();">
+      <span class="ico">🎙️</span>
+      <h3>Talk to MR Solve</h3>
+      <p>Live voice conversation with your AI safety expert.</p>
+      <span class="call-btn">▶ Start a Call</span>
+    </div>
+    <elevenlabs-convai id="el-widget" agent-id="agent_5501kerrzqnxf9e9r9gafkhk92ya"></elevenlabs-convai>
+    <script src="https://elevenlabs.io/convai-widget/index.js" async type="text/javascript"></script>
     <div class="feat"><span class="ico">🏗️</span><h3>Work at Height</h3><p>Fall factors, lifeline design and rescue planning.</p></div>
     <div class="feat"><span class="ico">📄</span><h3>Tech Docs</h3><p>Backed by white papers, test reports and certificates.</p></div>
   </div>
