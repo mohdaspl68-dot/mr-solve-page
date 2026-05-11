@@ -133,10 +133,14 @@
     .feat.call-card::after { display: none; }
     .feat.call-card:hover  { transform: translateY(-2px); border-color: #f5a623; }
 
-    .call-card .mic-ico {
-      font-size: 2.2rem;
+    .call-card .robot-img {
+      width: 115px;
+      height: 155px;
+      object-fit: cover;
+      object-position: top center;
       display: block;
-      margin-bottom: 2px;
+      margin: 0 auto 2px;
+      border-radius: 8px;
     }
 
     .call-card h3 {
@@ -293,11 +297,11 @@
 
     <!-- Centre call card -->
     <div class="feat call-card">
-      <span class="mic-ico">🎤</span>
+      <img src="Solve-robot.jpeg" alt="MR Solve" class="robot-img" />
       <h3>Talk to MR Solve</h3>
       <p class="call-sub">Click Start, then say <strong style="color:#f5a623">"Hi"</strong> to activate.</p>
       <button class="start-call-btn" id="startBtn" onclick="startCall()">
-        &#9654; Start a Call
+        🎤 Start a Call
       </button>
     </div>
 
