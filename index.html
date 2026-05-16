@@ -242,6 +242,31 @@
 
     .btn:hover { background: #e8960f; }
 
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: #f5a623;
+      font-weight: 700;
+      font-size: 0.84rem;
+      padding: 11px 24px;
+      border-radius: 4px;
+      border: 1px solid #f5a623;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .btn-secondary:hover { background: rgba(245,166,35,0.1); }
+
+    .cta-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .disclaimer {
       font-size: 0.74rem;
       color: #374151;
@@ -322,7 +347,10 @@
   <!-- CTA -->
   <div class="cta">
     <p><strong>Need a full safety platform demo?</strong><br>Explore how Arresto transforms safety &amp; compliance with 20+ integrated modules.</p>
-    <a href="https://arrestosafe.com/contact" class="btn">Get a Demo &#8250;</a>
+    <div class="cta-actions">
+      <a href="https://arrestosafe.com/contact" class="btn">Get a Demo &#8250;</a>
+      <a href="transcripts.html" class="btn-secondary">&#128203; Interaction History</a>
+    </div>
   </div>
 
   <p class="disclaimer">MR Solve draws answers strictly from verified Karam safety documentation. For critical safety decisions always consult a qualified engineer.</p>
