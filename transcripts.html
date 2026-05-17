@@ -579,9 +579,10 @@
 </div>
 
 <script>
-  const API_KEY  = "sk_79852114ddc3ccc9d51a36fb9365f5254b4a0d508504d27c";
-  const AGENT_ID = "agent_5501kerrzqnxf9e9r9gafkhk92ya";
-  const PAGE_SIZE = 20;   // conversations shown per page
+  const API_KEY    = "sk_79852114ddc3ccc9d51a36fb9365f5254b4a0d508504d27c";
+  const AGENT_ID   = "agent_5501kerrzqnxf9e9r9gafkhk92ya";
+  const GEMINI_KEY = "AIzaSyDwuGe7HeBmGXKRlPRFyVcCiOBU7GyS-Ck";
+  const PAGE_SIZE  = 20;
 
   let allFiltered = [];   // full filtered result
   let transcriptCache = {};
@@ -759,15 +760,67 @@
   let _modalFilename = '';
   let _modalTxt      = '';
 
+  // AI summary cache so we don't re-call Gemini on repeat opens
+  const summaryCache = {};
+
+  async function generateAISummary(convId, transcript) {
+    if (summaryCache[convId]) return summaryCache[convId];
+
+    const turns = transcript || [];
+    if (turns.length === 0) return 'No transcript available for summary.';
+
+    const convText = turns.map(t =>
+      `${t.role === 'agent' ? 'SOLVE (AI Safety Expert)' : 'User'}: ${(t.message || '').trim()}`
+    ).join('\n\n');
+
+    const prompt = `You are summarizing a conversation between a user and SOLVE, an AI industrial safety expert assistant by Arresto Safe.
+
+Transcript:
+${convText}
+
+Write a professional plain-text summary with three sections:
+
+OVERVIEW
+2-3 sentences describing what the conversation was about.
+
+QUESTIONS ASKED
+A numbered list of every distinct question or topic raised by the user.
+
+CONSOLIDATED ANSWER
+A single flowing narrative that addresses all the user's questions together clearly and professionally, as if written by a safety expert. Do not repeat the questions — just answer them all in one coherent response.
+
+Use plain text only. No markdown, no asterisks, no bullet symbols. Keep it concise and professional.`;
+
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
+          })
+        }
+      );
+      const data = await resp.json();
+      const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Summary could not be generated.';
+      summaryCache[convId] = summary;
+      return summary;
+    } catch (e) {
+      return `Summary unavailable: ${e.message}`;
+    }
+  }
+
   async function previewOne(convId, dateLabel) {
-    // Show modal with loading state
-    document.getElementById('modalTitle').textContent   = 'Transcript Preview';
+    document.getElementById('modalTitle').textContent    = 'Transcript Preview';
     document.getElementById('modalSubtitle').textContent = dateLabel.replace(/_/g,' ');
     document.getElementById('modalContent').textContent  = 'Loading transcript…';
     document.getElementById('modalDlBtn').disabled       = true;
     document.getElementById('modalBackdrop').classList.add('visible');
     document.body.style.overflow = 'hidden';
 
+    // Step 1: fetch transcript if not cached
     let detail = transcriptCache[convId];
     if (!detail) {
       try {
@@ -778,17 +831,22 @@
         detail = await resp.json();
         transcriptCache[convId] = detail;
       } catch (e) {
-        document.getElementById('modalContent').textContent = 'Error: ' + e.message;
+        document.getElementById('modalContent').textContent = 'Error loading transcript: ' + e.message;
         return;
       }
     }
 
-    const txt = buildTxt(convId, dateLabel, detail);
+    // Step 2: generate AI summary (show progress)
+    document.getElementById('modalContent').textContent = 'Generating AI summary…';
+    const aiSummary = await generateAISummary(convId, detail.transcript);
+
+    // Step 3: build and show full txt
+    const txt = buildTxt(convId, dateLabel, detail, aiSummary);
     _modalFilename = `SOLVE_${dateLabel}.txt`;
     _modalTxt      = txt;
 
-    document.getElementById('modalContent').textContent  = txt;
-    document.getElementById('modalDlBtn').disabled        = false;
+    document.getElementById('modalContent').textContent = txt;
+    document.getElementById('modalDlBtn').disabled       = false;
   }
 
   function confirmDownload() {
@@ -811,13 +869,19 @@
 
   async function downloadAll() {
     const btn = document.getElementById('dlAllBtn');
-    btn.innerHTML = '<span class="spinner"></span> Preparing…';
     btn.disabled = true;
 
     let combined = '';
-    for (const conv of allFiltered) {
-      const dt = new Date(conv.start_time_unix_secs * 1000);
+    const total = allFiltered.length;
+
+    for (let i = 0; i < allFiltered.length; i++) {
+      const conv  = allFiltered[i];
+      const dt    = new Date(conv.start_time_unix_secs * 1000);
       const label = escDate(dt);
+
+      btn.innerHTML = `<span class="spinner"></span> ${i + 1} / ${total} — fetching…`;
+
+      // Fetch transcript
       let detail = transcriptCache[conv.conversation_id];
       if (!detail) {
         try {
@@ -826,10 +890,15 @@
           });
           detail = await resp.json();
           transcriptCache[conv.conversation_id] = detail;
-          await sleep(200);
         } catch (e) { detail = { transcript: [] }; }
       }
-      combined += buildTxt(conv.conversation_id, label, detail) + '\n\n\n';
+
+      // Generate AI summary
+      btn.innerHTML = `<span class="spinner"></span> ${i + 1} / ${total} — summarising…`;
+      const aiSummary = await generateAISummary(conv.conversation_id, detail.transcript);
+
+      combined += buildTxt(conv.conversation_id, label, detail, aiSummary) + '\n\n\n';
+      await sleep(300); // be polite to Gemini rate limits
     }
 
     const fromVal = document.getElementById('fromDate').value.replace(/-/g,'');
@@ -841,27 +910,13 @@
   }
 
   // Helpers
-  function buildTxt(convId, dateLabel, detail) {
+  function buildTxt(convId, dateLabel, detail, aiSummary) {
     const sep  = '='.repeat(60);
     const dash = '-'.repeat(60);
-    const transcript = detail.transcript || [];
+    const transcript  = detail.transcript || [];
     const dateDisplay = dateLabel.replace(/_/g,' ');
 
-    // ── Build Q&A pairs ──────────────────────────────────────
-    // Walk turns; every user message is paired with the immediately
-    // following agent turn. Skip very short turns (greetings / acks).
-    const pairs = [];
-    for (let i = 0; i < transcript.length; i++) {
-      const t = transcript[i];
-      if (t.role !== 'user') continue;
-      const msg = (t.message || '').trim();
-      if (msg.length < 12) continue;              // skip one-word acks
-      // find next agent reply
-      const reply = transcript.slice(i + 1).find(r => r.role === 'agent' && (r.message || '').trim().length > 10);
-      if (reply) pairs.push({ q: msg, a: reply.message.trim() });
-    }
-
-    // ── Summary block ────────────────────────────────────────
+    // ── AI Summary block ─────────────────────────────────────
     const summaryLines = [
       sep,
       'CONVERSATION SUMMARY',
@@ -871,27 +926,13 @@
       ''
     ];
 
-    if (pairs.length === 0) {
-      summaryLines.push('  No questions detected in this conversation.');
-      summaryLines.push('');
+    if (aiSummary) {
+      summaryLines.push(aiSummary.trim());
     } else {
-      // Questions list
-      summaryLines.push(`QUESTIONS ASKED  (${pairs.length} total)`);
-      summaryLines.push(dash);
-      pairs.forEach((p, i) => {
-        summaryLines.push(`  Q${i + 1}. ${p.q}`);
-      });
-      summaryLines.push('');
-
-      // Answers
-      summaryLines.push('ANSWERS');
-      summaryLines.push(dash);
-      pairs.forEach((p, i) => {
-        summaryLines.push(`A${i + 1}. ${p.a}`);
-        summaryLines.push('');
-      });
+      summaryLines.push('  Summary not available.');
     }
 
+    summaryLines.push('');
     summaryLines.push(sep);
     summaryLines.push('');
 
