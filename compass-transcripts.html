@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compass — Interaction History | KSTRONG USA</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      background: #0a0a0a;
+      background-image:
+        radial-gradient(circle, rgba(220,38,38,0.12) 1px, transparent 1px),
+        linear-gradient(rgba(220,38,38,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(220,38,38,0.03) 1px, transparent 1px);
+      background-size: 40px 40px, 40px 40px, 40px 40px;
+      color: #fff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(220,38,38,0.08) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+
+    /* Header */
+    .page-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #4b5563;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-decoration: none;
+      margin-bottom: 24px;
+      transition: color 0.2s;
+    }
+
+    .back-link:hover { color: #dc2626; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #dc2626;
+      border-radius: 4px;
+      padding: 6px 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #dc2626;
+      margin-bottom: 20px;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: #dc2626;
+      border-radius: 50%;
+    }
+
+    h1 {
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+      font-weight: 900;
+      line-height: 1.15;
+      margin-bottom: 8px;
+    }
+
+    h1 span { color: #dc2626; }
+
+    .sub {
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+
+    /* Filter card */
+    .filter-card {
+      background: #111111;
+      border: 1px solid #1f1f1f;
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin-bottom: 28px;
+    }
+
+    .filter-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 160px;
+    }
+
+    label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+
+    input[type="date"] {
+      background: #0a0a0a;
+      border: 1px solid #1f1f1f;
+      border-radius: 6px;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      padding: 10px 14px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s;
+      color-scheme: dark;
+    }
+
+    input[type="date"]:focus { border-color: #dc2626; }
+
+    .btn-retrieve {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #dc2626;
+      color: #000;
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 0.85rem;
+      padding: 11px 28px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 0 20px rgba(220,38,38,0.2);
+      height: 42px;
+    }
+
+    .btn-retrieve:hover  { background: #b91c1c; transform: translateY(-1px); }
+    .btn-retrieve:active { transform: translateY(0); }
+    .btn-retrieve:disabled { background: #3b0a0a; color: #6b2020; cursor: not-allowed; transform: none; }
+
+    /* Status bar */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      min-height: 36px;
+    }
+
+    .status-msg {
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+
+    .status-msg strong { color: #dc2626; }
+    .status-msg.error  { color: #f87171; }
+
+    .btn-dl-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1px solid #dc2626;
+      color: #dc2626;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 7px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-dl-all:hover { background: rgba(220,38,38,0.1); }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(220,38,38,0.3);
+      border-top-color: #dc2626;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Conversation list */
+    .conv-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .conv-item {
+      background: #111111;
+      border: 1px solid #1f1f1f;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .conv-item:hover { border-color: rgba(220,38,38,0.3); }
+    .conv-item.open  { border-color: rgba(220,38,38,0.5); }
+
+    .conv-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      cursor: pointer;
+      user-select: none;
+      gap: 12px;
+    }
+
+    .conv-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .conv-date {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .conv-dur {
+      font-size: 0.78rem;
+      color: #6b7280;
+      background: #1a1a1a;
+      border: 1px solid #1f1f1f;
+      border-radius: 3px;
+      padding: 2px 8px;
+    }
+
+    .conv-turns {
+      font-size: 0.78rem;
+      color: #6b7280;
+    }
+
+    .conv-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-dl-one {
+      background: transparent;
+      border: 1px solid #1f1f1f;
+      color: #9ca3af;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-dl-one:hover { border-color: #dc2626; color: #dc2626; }
+
+    .chevron {
+      font-size: 0.7rem;
+      color: #6b7280;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .conv-item.open .chevron { transform: rotate(180deg); }
+
+    /* Transcript body */
+    .conv-body {
+      display: none;
+      border-top: 1px solid #1f1f1f;
+      padding: 20px;
+    }
+
+    .conv-item.open .conv-body { display: block; }
+
+    .transcript-loading {
+      font-size: 0.82rem;
+      color: #6b7280;
+      padding: 8px 0;
+    }
+
+    .turn {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .turn:last-child { margin-bottom: 0; }
+
+    .turn-role {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      min-width: 60px;
+      padding-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .turn-role.agent { color: #dc2626; }
+    .turn-role.user  { color: #60a5fa; }
+
+    .turn-msg {
+      font-size: 0.84rem;
+      color: #d1d5db;
+      line-height: 1.65;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: #374151;
+      font-size: 0.88rem;
+    }
+
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 24px;
+      font-size: 0.82rem;
+      color: #6b7280;
+    }
+
+    .pg-btn {
+      background: #111111;
+      border: 1px solid #1f1f1f;
+      color: #9ca3af;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .pg-btn:hover:not(:disabled) { border-color: #dc2626; color: #dc2626; }
+    .pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Preview Modal ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(3px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop.visible { display: flex; }
+
+    .modal {
+      background: #111111;
+      border: 1px solid rgba(220,38,38,0.4);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 680px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 60px rgba(220,38,38,0.1);
+      animation: modalIn 0.18s ease;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.96) translateY(8px); }
+      to   { opacity: 1; transform: scale(1)    translateY(0);   }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid #1f1f1f;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .modal-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.3;
+    }
+
+    .modal-subtitle {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 3px;
+      font-weight: 400;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: 1px solid #1f1f1f;
+      color: #6b7280;
+      font-size: 1rem;
+      width: 30px; height: 30px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.2s, color 0.2s;
+      line-height: 1;
+    }
+
+    .modal-close:hover { border-color: #f87171; color: #f87171; }
+
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      scrollbar-width: thin;
+      scrollbar-color: #1f1f1f transparent;
+    }
+
+    .modal-body::-webkit-scrollbar { width: 6px; }
+    .modal-body::-webkit-scrollbar-track { background: transparent; }
+    .modal-body::-webkit-scrollbar-thumb { background: #1f1f1f; border-radius: 3px; }
+
+    .txt-preview {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      color: #d1d5db;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #0a0a0a;
+      border: 1px solid #1f1f1f;
+      border-radius: 6px;
+      padding: 16px 18px;
+    }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 24px;
+      border-top: 1px solid #1f1f1f;
+      flex-shrink: 0;
+    }
+
+    .btn-cancel {
+      background: transparent;
+      border: 1px solid #1f1f1f;
+      color: #9ca3af;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 9px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .btn-cancel:hover { border-color: #6b7280; color: #fff; }
+
+    .btn-confirm-dl {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: #dc2626;
+      color: #000;
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 0.82rem;
+      padding: 9px 22px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-confirm-dl:hover { background: #b91c1c; }
+
+    @media (max-width: 600px) {
+      .filter-card { padding: 20px 16px; }
+      .filter-row  { flex-direction: column; }
+      .btn-retrieve { width: 100%; justify-content: center; }
+      .conv-header  { flex-direction: column; align-items: flex-start; }
+      .modal { max-height: 92vh; }
+      .modal-header, .modal-body, .modal-footer { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="page-header">
+    <a href="compass.html" class="back-link">&#8592; Back to Compass</a>
+    <div class="badge">Interaction History</div>
+    <h1>Compass &mdash; <span>Conversation Transcripts</span></h1>
+    <p class="sub">Retrieve and review KSTRONG safety conversations for any date range</p>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-card">
+    <div class="filter-row">
+      <div class="field">
+        <label for="fromDate">From Date</label>
+        <input type="date" id="fromDate" />
+      </div>
+      <div class="field">
+        <label for="toDate">To Date</label>
+        <input type="date" id="toDate" />
+      </div>
+      <button class="btn-retrieve" id="retrieveBtn" onclick="retrieve()">
+        &#128269; Retrieve
+      </button>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="status-msg" id="statusMsg">Select a date range and click Retrieve.</span>
+    <button class="btn-dl-all" id="dlAllBtn" style="display:none" onclick="downloadAll()">
+      &#8595; Download All
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div class="conv-list" id="convList"></div>
+  <div class="pagination" id="paginationBar" style="display:none"></div>
+
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Transcript Preview</div>
+        <div class="modal-subtitle" id="modalSubtitle"></div>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()" title="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <pre class="txt-preview" id="modalContent"></pre>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModalDirect()">Cancel</button>
+      <button class="btn-confirm-dl" id="modalDlBtn" onclick="confirmDownload()">&#8595; Download TXT</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_KEY    = "30a95d3b31359b8702e838982bdc1bd79264f6ce3b3de492c45cd5e74167735d";
+  const AGENT_ID   = "agent_1001ksn8xc7te9vt8h2nzq4k1xbg";
+  const GEMINI_KEY = "AIzaSyDwuGe7HeBmGXKRlPRFyVcCiOBU7GyS-Ck";
+  const PAGE_SIZE  = 20;
+
+  let allFiltered = [];
+  let transcriptCache = {};
+  let currentPage = 1;
+
+  // Default date range: last 30 days
+  (function setDefaults() {
+    const today = new Date();
+    const prior = new Date(); prior.setDate(prior.getDate() - 30);
+    document.getElementById('toDate').value   = fmt(today);
+    document.getElementById('fromDate').value = fmt(prior);
+    function fmt(d) { return d.toISOString().split('T')[0]; }
+  })();
+
+  async function retrieve() {
+    const fromVal = document.getElementById('fromDate').value;
+    const toVal   = document.getElementById('toDate').value;
+    if (!fromVal || !toVal) { setStatus('Please select both From and To dates.', true); return; }
+    if (fromVal > toVal)    { setStatus('From date cannot be after To date.', true); return; }
+
+    const fromTs = Math.floor(new Date(fromVal + 'T00:00:00').getTime() / 1000);
+    const toTs   = Math.floor(new Date(toVal   + 'T23:59:59').getTime() / 1000);
+
+    const btn = document.getElementById('retrieveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Loading&hellip;';
+    setStatus('<span class="spinner"></span> Fetching conversations&hellip;');
+    document.getElementById('convList').innerHTML = '';
+    document.getElementById('dlAllBtn').style.display = 'none';
+    document.getElementById('paginationBar').style.display = 'none';
+    transcriptCache = {};
+    allFiltered = [];
+    currentPage = 1;
+
+    try {
+      let all = [];
+      let cursor = null;
+      do {
+        let url = `https://api.elevenlabs.io/v1/convai/conversations?agent_id=${AGENT_ID}&page_size=100`;
+        if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+        const resp = await fetch(url, { headers: { 'xi-api-key': API_KEY } });
+        if (!resp.ok) throw new Error(`API error ${resp.status}`);
+        const data = await resp.json();
+        const convs = data.conversations || [];
+        all = all.concat(convs);
+        cursor = data.next_cursor || null;
+        setStatus(`<span class="spinner"></span> Fetching&hellip; (${all.length} conversations scanned)`);
+        if (convs.length > 0 && convs[convs.length - 1].start_time_unix_secs < fromTs) break;
+      } while (cursor);
+
+      allFiltered = all.filter(c =>
+        c.start_time_unix_secs >= fromTs && c.start_time_unix_secs <= toTs
+      ).sort((a, b) => b.start_time_unix_secs - a.start_time_unix_secs);
+
+      if (allFiltered.length === 0) {
+        setStatus('No conversations found in this date range.');
+        document.getElementById('convList').innerHTML =
+          '<div class="empty-state"><div class="empty-icon">💬</div>No conversations found for the selected dates.</div>';
+      } else {
+        const fromLabel = new Date(fromVal).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+        const toLabel   = new Date(toVal).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+        setStatus(`Found <strong>${allFiltered.length}</strong> conversation${allFiltered.length !== 1 ? 's' : ''} between ${fromLabel} and ${toLabel}`);
+        document.getElementById('dlAllBtn').style.display = 'inline-flex';
+        renderPage(1);
+      }
+    } catch (e) {
+      setStatus('Error: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '&#128269; Retrieve';
+    }
+  }
+
+  function renderPage(page) {
+    currentPage = page;
+    const total = allFiltered.length;
+    const pages = Math.ceil(total / PAGE_SIZE);
+    const start = (page - 1) * PAGE_SIZE;
+    const slice = allFiltered.slice(start, start + PAGE_SIZE);
+
+    const list = document.getElementById('convList');
+    list.innerHTML = '';
+    slice.forEach((c, i) => renderConvItem(c, start + i, list));
+
+    const bar = document.getElementById('paginationBar');
+    if (pages > 1) {
+      bar.style.display = 'flex';
+      bar.innerHTML = `
+        <button class="pg-btn" onclick="renderPage(${page-1})" ${page===1?'disabled':''}>&#8592; Prev</button>
+        <span>Page ${page} of ${pages}</span>
+        <button class="pg-btn" onclick="renderPage(${page+1})" ${page===pages?'disabled':''}>Next &#8594;</button>
+      `;
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  function renderConvItem(conv, idx, container) {
+    const dt      = new Date(conv.start_time_unix_secs * 1000);
+    const dateStr = dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+    const timeStr = dt.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    const dur     = conv.call_duration_secs != null ? fmtDur(conv.call_duration_secs) : '—';
+    const turns   = conv.message_count != null ? `${conv.message_count} turns` : '';
+
+    const item = document.createElement('div');
+    item.className = 'conv-item';
+    item.id = 'conv-' + conv.conversation_id;
+    item.innerHTML = `
+      <div class="conv-header" onclick="toggleConv('${conv.conversation_id}', this)">
+        <div class="conv-meta">
+          <span class="conv-date">${dateStr} &nbsp; ${timeStr}</span>
+          ${dur !== '—' ? `<span class="conv-dur">&#9654; ${dur}</span>` : ''}
+          ${turns ? `<span class="conv-turns">${turns}</span>` : ''}
+        </div>
+        <div class="conv-actions">
+          <button class="btn-dl-one" onclick="event.stopPropagation(); previewOne('${conv.conversation_id}', '${escDate(dt)}')">&#128065; TXT</button>
+          <span class="chevron">&#9660;</span>
+        </div>
+      </div>
+      <div class="conv-body" id="body-${conv.conversation_id}">
+        <div class="transcript-loading"><span class="spinner"></span> Loading transcript&hellip;</div>
+      </div>
+    `;
+    container.appendChild(item);
+  }
+
+  async function toggleConv(convId, headerEl) {
+    const item = document.getElementById('conv-' + convId);
+    const body = document.getElementById('body-' + convId);
+    const isOpen = item.classList.contains('open');
+    if (isOpen) { item.classList.remove('open'); return; }
+    item.classList.add('open');
+
+    if (transcriptCache[convId]) { renderTranscript(body, transcriptCache[convId]); return; }
+
+    try {
+      const resp = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${convId}`, {
+        headers: { 'xi-api-key': API_KEY }
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      transcriptCache[convId] = data;
+      renderTranscript(body, data);
+    } catch (e) {
+      body.innerHTML = `<div class="transcript-loading" style="color:#f87171">Error loading transcript: ${e.message}</div>`;
+    }
+  }
+
+  function renderTranscript(body, data) {
+    const turns = data.transcript || [];
+    if (turns.length === 0) {
+      body.innerHTML = '<div class="transcript-loading">No transcript available.</div>';
+      return;
+    }
+    body.innerHTML = turns.map(t => `
+      <div class="turn">
+        <span class="turn-role ${t.role === 'agent' ? 'agent' : 'user'}">${t.role === 'agent' ? 'Compass' : 'User'}</span>
+        <span class="turn-msg">${escHtml(t.message || '')}</span>
+      </div>
+    `).join('');
+  }
+
+  let _modalFilename = '';
+  let _modalTxt      = '';
+  const summaryCache = {};
+
+  async function generateAISummary(convId, transcript) {
+    if (summaryCache[convId]) return summaryCache[convId];
+    const turns = transcript || [];
+    if (turns.length === 0) return 'No transcript available for summary.';
+
+    const convText = turns.map(t =>
+      `${t.role === 'agent' ? 'Compass (AI Safety Expert — KSTRONG USA)' : 'User'}: ${(t.message || '').trim()}`
+    ).join('\n\n');
+
+    const prompt = `You are summarizing a conversation between a user and Compass, an AI safety expert for KSTRONG USA — a leading fall protection and PPE manufacturer.
+
+Transcript:
+${convText}
+
+Write a professional plain-text summary with three sections:
+
+OVERVIEW
+2-3 sentences describing what the conversation was about and which KSTRONG products or safety topics were discussed.
+
+QUESTIONS ASKED
+A numbered list of every distinct question or topic raised by the user.
+
+CONSOLIDATED ANSWER
+A single flowing narrative that addresses all the user's questions clearly and professionally, as if written by a KSTRONG safety expert. Reference specific product codes, standards, or specifications where mentioned. Do not repeat the questions — just answer them all in one coherent response.
+
+Use plain text only. No markdown, no asterisks, no bullet symbols. Keep it concise and professional.`;
+
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
+          })
+        }
+      );
+      const data = await resp.json();
+      const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Summary could not be generated.';
+      summaryCache[convId] = summary;
+      return summary;
+    } catch (e) {
+      return `Summary unavailable: ${e.message}`;
+    }
+  }
+
+  async function previewOne(convId, dateLabel) {
+    document.getElementById('modalTitle').textContent    = 'Transcript Preview';
+    document.getElementById('modalSubtitle').textContent = dateLabel.replace(/_/g,' ');
+    document.getElementById('modalContent').textContent  = 'Loading transcript…';
+    document.getElementById('modalDlBtn').disabled       = true;
+    document.getElementById('modalBackdrop').classList.add('visible');
+    document.body.style.overflow = 'hidden';
+
+    let detail = transcriptCache[convId];
+    if (!detail) {
+      try {
+        const resp = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${convId}`, {
+          headers: { 'xi-api-key': API_KEY }
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        detail = await resp.json();
+        transcriptCache[convId] = detail;
+      } catch (e) {
+        document.getElementById('modalContent').textContent = 'Error loading transcript: ' + e.message;
+        return;
+      }
+    }
+
+    document.getElementById('modalContent').textContent = 'Generating AI summary…';
+    const aiSummary = await generateAISummary(convId, detail.transcript);
+    const txt = buildTxt(convId, dateLabel, detail, aiSummary);
+    _modalFilename = `Compass_${dateLabel}.txt`;
+    _modalTxt      = txt;
+
+    document.getElementById('modalContent').textContent = txt;
+    document.getElementById('modalDlBtn').disabled       = false;
+  }
+
+  function confirmDownload() {
+    if (_modalTxt) triggerDownload(_modalFilename, _modalTxt);
+    closeModalDirect();
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById('modalBackdrop')) closeModalDirect();
+  }
+
+  function closeModalDirect() {
+    document.getElementById('modalBackdrop').classList.remove('visible');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
+  async function downloadAll() {
+    const btn = document.getElementById('dlAllBtn');
+    btn.disabled = true;
+    let combined = '';
+    const total = allFiltered.length;
+
+    for (let i = 0; i < allFiltered.length; i++) {
+      const conv  = allFiltered[i];
+      const dt    = new Date(conv.start_time_unix_secs * 1000);
+      const label = escDate(dt);
+      btn.innerHTML = `<span class="spinner"></span> ${i + 1} / ${total} — fetching…`;
+
+      let detail = transcriptCache[conv.conversation_id];
+      if (!detail) {
+        try {
+          const resp = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${conv.conversation_id}`, {
+            headers: { 'xi-api-key': API_KEY }
+          });
+          detail = await resp.json();
+          transcriptCache[conv.conversation_id] = detail;
+        } catch (e) { detail = { transcript: [] }; }
+      }
+
+      btn.innerHTML = `<span class="spinner"></span> ${i + 1} / ${total} — summarising…`;
+      const aiSummary = await generateAISummary(conv.conversation_id, detail.transcript);
+      combined += buildTxt(conv.conversation_id, label, detail, aiSummary) + '\n\n\n';
+      await sleep(300);
+    }
+
+    const fromVal = document.getElementById('fromDate').value.replace(/-/g,'');
+    const toVal   = document.getElementById('toDate').value.replace(/-/g,'');
+    triggerDownload(`Compass_Transcripts_${fromVal}_to_${toVal}.txt`, combined);
+    btn.innerHTML = '&#8595; Download All';
+    btn.disabled = false;
+  }
+
+  function buildTxt(convId, dateLabel, detail, aiSummary) {
+    const sep  = '='.repeat(60);
+    const transcript  = detail.transcript || [];
+    const dateDisplay = dateLabel.replace(/_/g,' ');
+
+    const summaryLines = [
+      sep,
+      'COMPASS — KSTRONG USA  |  CONVERSATION SUMMARY',
+      `Date   : ${dateDisplay}`,
+      `ID     : ${convId}`,
+      sep,
+      ''
+    ];
+
+    summaryLines.push(aiSummary ? aiSummary.trim() : '  Summary not available.');
+    summaryLines.push('');
+    summaryLines.push(sep);
+    summaryLines.push('');
+
+    const transcriptLines = [
+      sep,
+      'FULL TRANSCRIPT',
+      sep,
+      ''
+    ];
+
+    transcript.forEach(t => {
+      transcriptLines.push(`${t.role === 'agent' ? 'Compass' : 'User   '} : ${t.message || ''}`);
+      transcriptLines.push('');
+    });
+
+    transcriptLines.push(sep);
+    transcriptLines.push('End of transcript — Compass AI Safety Expert | KSTRONG USA');
+    transcriptLines.push(sep);
+
+    return [...summaryLines, ...transcriptLines].join('\n');
+  }
+
+  function triggerDownload(filename, text) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function fmtDur(secs) {
+    if (!secs) return '0s';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  function escDate(dt) {
+    return dt.toISOString().replace('T',' ').substring(0,16).replace(/[: ]/g,'-');
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function setStatus(html, isError) {
+    const el = document.getElementById('statusMsg');
+    el.innerHTML = html;
+    el.className = 'status-msg' + (isError ? ' error' : '');
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
