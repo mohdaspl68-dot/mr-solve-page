@@ -4,6 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MR Solve — AI Safety Expert | Arresto Safe</title>
+
+  <!-- Must run before the ElevenLabs widget script: taps the mic stream the widget
+       opens so we can tell when the caller has stopped speaking. -->
+  <script>
+    (function () {
+      function tap(stream) {
+        try {
+          if (stream && !stream.solveTapped && window.solveOnMicStream) {
+            stream.solveTapped = true;
+            window.solveOnMicStream(stream);
+          }
+        } catch (e) {}
+        return stream;
+      }
+
+      // The widget wraps getUserMedia itself, and may capture either the
+      // instance method or the prototype one — hook both.
+      function wrap(target, key) {
+        if (!target || typeof target[key] !== 'function') return;
+        var orig = target[key];
+        target[key] = function () {
+          return orig.apply(this, arguments).then(tap);
+        };
+      }
+
+      wrap(navigator.mediaDevices, 'getUserMedia');
+      if (window.MediaDevices) wrap(MediaDevices.prototype, 'getUserMedia');
+    })();
+  </script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
 
@@ -206,6 +236,93 @@
       height: 1px;
     }
 
+    /* Live status strip */
+    /* Hidden state is display:none, shown state needs no animation to be
+       visible — the fade is decoration, never the thing that reveals it. */
+    .solve-status { display: none; }
+
+    .solve-status.on {
+      max-width: 620px;
+      margin: -20px auto 40px;
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-align: left;
+      animation: strip-in 0.3s ease-out;
+    }
+
+    @keyframes strip-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .solve-status .st-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #f5a623;
+      box-shadow: 0 0 0 0 rgba(245,166,35,0.5);
+      animation: ping 1.6s infinite;
+    }
+
+    .solve-status .st-body { min-width: 0; }
+
+    .solve-status .st-text {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #fff;
+      display: block;
+      line-height: 1.4;
+    }
+
+    .solve-status .st-hint {
+      font-size: 0.76rem;
+      color: #6b7280;
+      display: block;
+      line-height: 1.5;
+      margin-top: 2px;
+    }
+
+    /* animated ellipsis while connecting / thinking */
+    .solve-status.dots .st-text::after {
+      content: '';
+      display: inline-block;
+      width: 1.1em;
+      text-align: left;
+      animation: dots 1.4s steps(1, end) infinite;
+    }
+
+    .solve-status.thinking .st-dot  { background: #f5a623; box-shadow: 0 0 0 0 rgba(245,166,35,0.5); }
+    .solve-status.thinking .st-text { color: #f5a623; }
+    .solve-status.listening .st-dot { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+    .solve-status.speaking  .st-dot { background: #38bdf8; box-shadow: 0 0 0 0 rgba(56,189,248,0.5); }
+    .solve-status.speaking  .st-text{ color: #38bdf8; }
+    .solve-status.error     .st-dot { background: #ef4444; animation: none; }
+    .solve-status.error     .st-text{ color: #ef4444; }
+
+    @keyframes ping {
+      0%   { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+      70%  { box-shadow: 0 0 0 8px rgba(0,0,0,0); opacity: 0.85; }
+      100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); opacity: 1; }
+    }
+
+    @keyframes dots {
+      0%   { content: ''; }
+      25%  { content: '.'; }
+      50%  { content: '..'; }
+      75%  { content: '...'; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .solve-status .st-dot { animation: none; }
+      .solve-status.dots .st-text::after { content: '...'; animation: none; }
+    }
+
     /* CTA */
     .cta {
       max-width: 1100px;
@@ -302,7 +419,10 @@
   <p class="sub">Ask anything about fall protection, PPE, standards and Karam products. Powered by our complete technical knowledge base.</p>
 
   <!-- Hidden ElevenLabs widget -->
-  <elevenlabs-convai agent-id="agent_5501kerrzqnxf9e9r9gafkhk92ya"></elevenlabs-convai>
+  <elevenlabs-convai
+    agent-id="agent_5501kerrzqnxf9e9r9gafkhk92ya"
+    listening-text="listening"
+    speaking-text="answering"></elevenlabs-convai>
   <script src="https://elevenlabs.io/convai-widget/index.js" async type="text/javascript"></script>
 
   <!-- 5-column feature grid with call card in centre -->
@@ -344,6 +464,15 @@
 
   </div>
 
+  <!-- Live status strip -->
+  <div class="solve-status" id="solveStatus" role="status" aria-live="polite">
+    <span class="st-dot"></span>
+    <span class="st-body">
+      <span class="st-text" id="solveStatusText"></span>
+      <span class="st-hint" id="solveStatusHint"></span>
+    </span>
+  </div>
+
   <!-- CTA -->
   <div class="cta">
     <p><strong>Need a full safety platform demo?</strong><br>Explore how Arresto transforms safety &amp; compliance with 20+ integrated modules.</p>
@@ -358,50 +487,238 @@
 </div>
 
 <script>
+  /* ------------------------------------------------------------------
+     Live status strip — tells the caller what MR Solve is doing so the
+     few seconds of thinking time never read as a dead line.
+     ------------------------------------------------------------------ */
+
+  var STATES = {
+    connecting: {
+      cls: 'dots',
+      text: 'Connecting you to MR Solve',
+      hint: 'Opening a secure voice line — allow microphone access if asked.'
+    },
+    listening: {
+      cls: 'listening',
+      text: 'MR Solve is listening',
+      hint: 'Go ahead — ask anything about safety, standards or products.'
+    },
+    hearing: {
+      cls: 'listening dots',
+      text: 'Listening to your question',
+      hint: 'Take your time — MR Solve will answer when you pause.'
+    },
+    thinking: {
+      cls: 'thinking dots',
+      text: 'MR Solve is thinking',
+      hint: 'Searching the Karam safety knowledge base — this takes a few seconds.'
+    },
+    thinkingLong: {
+      cls: 'thinking dots',
+      text: 'Still working on it',
+      hint: 'Checking the standards and test data to get this right — hold on.'
+    },
+    speaking: {
+      cls: 'speaking',
+      text: 'MR Solve is answering',
+      hint: 'Start speaking any time to interrupt or ask a follow-up.'
+    },
+    error: {
+      cls: 'error',
+      text: 'Could not connect the call',
+      hint: 'Please check your microphone permission and press Start a Call again.'
+    }
+  };
+
+  var statusEl  = document.getElementById('solveStatus');
+  var statusTxt = document.getElementById('solveStatusText');
+  var statusHnt = document.getElementById('solveStatusHint');
+  var state     = 'idle';
+  var longTimer = null;
+  var giveUpTimer = null;
+
+  function setState(next) {
+    if (state === next) return;
+    state = next;
+
+    clearTimeout(longTimer);
+    clearTimeout(giveUpTimer);
+
+    if (next === 'idle') {
+      statusEl.className = 'solve-status';
+      return;
+    }
+
+    var s = STATES[next] || STATES.listening;
+    statusTxt.textContent = s.text;
+    statusHnt.textContent = s.hint;
+    statusEl.className = 'solve-status on ' + s.cls;
+
+    if (next === 'thinking') {
+      // Escalate the wording if the answer is taking longer than usual,
+      // then fall back to listening so the strip can never get stuck.
+      longTimer   = setTimeout(function () { setState('thinkingLong'); }, 6000);
+      giveUpTimer = setTimeout(function () { setState('listening'); }, 30000);
+    }
+    if (next === 'thinkingLong') {
+      giveUpTimer = setTimeout(function () { setState('listening'); }, 24000);
+    }
+  }
+
+  /* ---- Mic voice-activity detection -------------------------------
+     The widget's own status only flips to "answering" once audio starts,
+     so the thinking gap is detected here: caller speaks, caller stops. */
+
+  var vadTimer = null;
+
+  window.solveOnMicStream = function (stream) {
+    if (!stream.getAudioTracks || !stream.getAudioTracks().length) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+
+    try {
+      var ctx      = new AC();
+      var analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      if (ctx.state === 'suspended') { ctx.resume(); }
+
+      var buf        = new Uint8Array(analyser.fftSize);
+      var noiseFloor = null;
+      var voice      = false;
+      var lastVoice  = 0;
+
+      clearInterval(vadTimer);
+      vadTimer = setInterval(function () {
+        analyser.getByteTimeDomainData(buf);
+        var sum = 0;
+        for (var i = 0; i < buf.length; i++) {
+          var v = (buf[i] - 128) / 128;
+          sum += v * v;
+        }
+        var rms = Math.sqrt(sum / buf.length);
+        var now = Date.now();
+
+        // Slow-moving noise floor so a noisy site does not read as speech.
+        if (noiseFloor === null) noiseFloor = rms;
+        else if (rms < noiseFloor) noiseFloor = noiseFloor * 0.9 + rms * 0.1;
+        else noiseFloor = noiseFloor * 0.995 + rms * 0.005;
+
+        var threshold = Math.max(0.02, noiseFloor * 3.5);
+
+        // While MR Solve is answering, ignore the mic — speaker bleed and
+        // interruptions are handled by the widget's own status.
+        if (state === 'speaking' || state === 'idle' || state === 'error') return;
+
+        if (rms > threshold) {
+          lastVoice = now;
+          if (!voice) {
+            voice = true;
+            setState('hearing');
+          }
+        } else if (voice && now - lastVoice > 700) {
+          voice = false;
+          setState('thinking');
+        }
+      }, 100);
+    } catch (e) { /* status strip is a nicety — never break the call */ }
+  };
+
+  /* ---- Mirror the widget's own status ------------------------------ */
+
+  function watchWidgetStatus(widget) {
+    if (!widget.shadowRoot) { setTimeout(function () { watchWidgetStatus(widget); }, 200); return; }
+
+    var read = function () {
+      if (state === 'idle' || state === 'error') return;
+      var el = widget.shadowRoot.querySelector('[class*="_status_"]');
+      if (!el) return;
+      var txt = (el.textContent || '').trim().toLowerCase();
+      if (!txt) return;
+
+      if (txt.indexOf('answering') > -1 || txt.indexOf('interrupt') > -1 || txt.indexOf('speaking') > -1) {
+        setState('speaking');
+      } else if (txt.indexOf('listening') > -1) {
+        // The widget reports "listening" both while idle and while thinking,
+        // so only leave the speaking state on this signal.
+        if (state === 'speaking') setState('listening');
+      } else if (txt.indexOf('connect') > -1) {
+        setState('connecting');
+      }
+    };
+
+    new MutationObserver(read).observe(widget.shadowRoot, {
+      subtree: true, childList: true, characterData: true
+    });
+    read();
+  }
+
+  /* ---- Call control ------------------------------------------------ */
+
+  function findStartButton(shadow) {
+    var all = shadow.querySelectorAll('button');
+    for (var i = 0; i < all.length; i++) {
+      var title = (all[i].getAttribute('title') || '').toLowerCase();
+      var txt   = all[i].textContent.trim().toLowerCase();
+      if (title.indexOf('start a call') > -1) return all[i];
+      if (txt.indexOf('start') > -1 || txt.indexOf('connect') > -1) return all[i];
+    }
+    return null;
+  }
+
   function startCall() {
     var btn    = document.getElementById('startBtn');
     var widget = document.querySelector('elevenlabs-convai');
 
     btn.disabled  = true;
     btn.innerHTML = '&#9654; Connecting...';
+    setState('connecting');
+    watchWidgetStatus(widget);
 
-    function clickToggle() {
-      if (!widget.shadowRoot) { setTimeout(clickToggle, 200); return; }
+    function begin() {
+      if (!widget.shadowRoot) { setTimeout(begin, 200); return; }
+
+      // If the panel is already showing its own Start button, use it straight
+      // away; otherwise open the panel first, then look again.
+      if (findStartButton(widget.shadowRoot)) { clickStartCall(); return; }
+
       var toggleBtn = widget.shadowRoot.querySelector('button');
-      if (!toggleBtn)         { setTimeout(clickToggle, 200); return; }
+      if (!toggleBtn) { setTimeout(begin, 200); return; }
       toggleBtn.click();
-      setTimeout(clickStartCall, 600);
+      setTimeout(clickStartCall, 400);
     }
 
     function clickStartCall() {
       var shadow   = widget.shadowRoot;
       var attempts = 0;
-      var timer    = setInterval(function() {
+      var timer    = setInterval(function () {
         attempts++;
         if (attempts > 20) {
           clearInterval(timer);
           btn.disabled  = false;
           btn.innerHTML = '&#9654; Start a Call';
           btn.classList.remove('calling');
+          setState('error');
           return;
         }
-        var allBtns = shadow.querySelectorAll('button');
-        for (var i = 0; i < allBtns.length; i++) {
-          var txt = allBtns[i].textContent.trim().toLowerCase();
-          if (txt.includes('start') || txt.includes('call') || txt.includes('connect')) {
-            allBtns[i].click();
-            clearInterval(timer);
-            btn.innerHTML = '&#9632; End Call';
-            btn.classList.add('calling');
-            btn.onclick  = endCall;
-            btn.disabled = false;
-            return;
-          }
+        var target = findStartButton(shadow);
+        if (target) {
+          target.click();
+          clearInterval(timer);
+          btn.innerHTML = '&#9632; End Call';
+          btn.classList.add('calling');
+          btn.onclick  = endCall;
+          btn.disabled = false;
+          // The greeting is the first thing the caller hears, so hold the
+          // connecting message until the widget reports it is speaking.
+          setTimeout(function () {
+            if (state === 'connecting') setState('listening');
+          }, 8000);
         }
       }, 300);
     }
 
-    clickToggle();
+    begin();
   }
 
   function endCall() {
@@ -419,6 +736,8 @@
     btn.innerHTML = '&#9654; Start a Call';
     btn.classList.remove('calling');
     btn.onclick  = startCall;
+    clearInterval(vadTimer);
+    setState('idle');
   }
 </script>
 
