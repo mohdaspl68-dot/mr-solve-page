@@ -242,8 +242,14 @@
     .solve-status { display: none; }
 
     .solve-status.on {
+      /* Full-width row of the feature grid. order:99 keeps it below all five
+         cards on desktop; the stacked breakpoints reset it so it lands right
+         under the call card instead. */
+      grid-column: 1 / -1;
+      order: 99;
+      width: 100%;
       max-width: 620px;
-      margin: -20px auto 40px;
+      margin: 0 auto;
       background: #161616;
       border: 1px solid #2a2a2a;
       border-radius: 8px;
@@ -399,6 +405,9 @@
 
     @media (max-width: 900px) {
       .features { grid-template-columns: repeat(3, 1fr); }
+      /* Grid has stacked — follow document order so the strip sits
+         immediately below the call card, in view without scrolling. */
+      .solve-status.on { order: 0; }
     }
 
     @media (max-width: 600px) {
@@ -450,6 +459,16 @@
       </button>
     </div>
 
+    <!-- Live status strip — sits inside the grid so it stays directly under
+         the call card on tablet and phone, where the grid stacks. -->
+    <div class="solve-status" id="solveStatus" role="status" aria-live="polite">
+      <span class="st-dot"></span>
+      <span class="st-body">
+        <span class="st-text" id="solveStatusText"></span>
+        <span class="st-hint" id="solveStatusHint"></span>
+      </span>
+    </div>
+
     <div class="feat">
       <span class="ico">🏗️</span>
       <h3>Work at Height</h3>
@@ -462,15 +481,6 @@
       <p>Backed by white papers, test reports and certificates.</p>
     </div>
 
-  </div>
-
-  <!-- Live status strip -->
-  <div class="solve-status" id="solveStatus" role="status" aria-live="polite">
-    <span class="st-dot"></span>
-    <span class="st-body">
-      <span class="st-text" id="solveStatusText"></span>
-      <span class="st-hint" id="solveStatusHint"></span>
-    </span>
   </div>
 
   <!-- CTA -->
@@ -666,45 +676,50 @@
     return null;
   }
 
+  // On a phone the strip can sit just below the fold — make sure the caller
+  // actually sees it when the call starts.
+  function ensureVisible() {
+    try {
+      var offscreen = function () {
+        var r  = statusEl.getBoundingClientRect();
+        var vh = window.innerHeight || document.documentElement.clientHeight;
+        return r.top < 8 || r.bottom > vh - 8;
+      };
+      if (!offscreen()) return;
+      statusEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // If the smooth scroll did not land (interrupted, or animations paused),
+      // jump there — being seen matters more than the glide.
+      setTimeout(function () {
+        if (offscreen()) statusEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }, 700);
+    } catch (e) {}
+  }
+
   function startCall() {
-    var btn    = document.getElementById('startBtn');
-    var widget = document.querySelector('elevenlabs-convai');
+    var btn = document.getElementById('startBtn');
 
     btn.disabled  = true;
     btn.innerHTML = '&#9654; Connecting...';
     setState('connecting');
-    watchWidgetStatus(widget);
+    ensureVisible();
 
-    function begin() {
-      if (!widget.shadowRoot) { setTimeout(begin, 200); return; }
+    var attempts  = 0;
+    var recovered = false;
 
-      // If the panel is already showing its own Start button, use it straight
-      // away; otherwise open the panel first, then look again.
-      if (findStartButton(widget.shadowRoot)) { clickStartCall(); return; }
+    // The widget element is re-queried every tick: a recovery reset swaps it
+    // out, and a cached reference would then be pointing at a dead element.
+    var timer = setInterval(function () {
+      attempts++;
 
-      var toggleBtn = widget.shadowRoot.querySelector('button');
-      if (!toggleBtn) { setTimeout(begin, 200); return; }
-      toggleBtn.click();
-      setTimeout(clickStartCall, 400);
-    }
+      var widget = document.querySelector('elevenlabs-convai');
+      var shadow = widget && widget.shadowRoot;
 
-    function clickStartCall() {
-      var shadow   = widget.shadowRoot;
-      var attempts = 0;
-      var timer    = setInterval(function () {
-        attempts++;
-        if (attempts > 20) {
-          clearInterval(timer);
-          btn.disabled  = false;
-          btn.innerHTML = '&#9654; Start a Call';
-          btn.classList.remove('calling');
-          setState('error');
-          return;
-        }
+      if (shadow) {
         var target = findStartButton(shadow);
         if (target) {
-          target.click();
           clearInterval(timer);
+          watchWidgetStatus(widget);
+          target.click();
           btn.innerHTML = '&#9632; End Call';
           btn.classList.add('calling');
           btn.onclick  = endCall;
@@ -714,30 +729,84 @@
           setTimeout(function () {
             if (state === 'connecting') setState('listening');
           }, 8000);
+          return;
         }
-      }, 300);
-    }
 
-    begin();
+        // No start button yet — open the widget panel.
+        if (attempts === 1) {
+          var toggle = shadow.querySelector('button');
+          if (toggle) { toggle.click(); return; }
+        }
+
+        // Still no start button after ~2.5s: a previous session is probably
+        // still holding the widget. Rebuild it once and carry on polling.
+        if (attempts === 8 && !recovered) { recovered = true; resetWidget(); return; }
+      }
+
+      if (attempts > 30) {
+        clearInterval(timer);
+        btn.disabled  = false;
+        btn.innerHTML = '&#9654; Start a Call';
+        btn.classList.remove('calling');
+        btn.onclick   = startCall;
+        setState('error');
+      }
+    }, 300);
+  }
+
+  function findEndButton(shadow) {
+    var all = shadow.querySelectorAll('button');
+    for (var i = 0; i < all.length; i++) {
+      // The end-call control is an icon button with no text, so the title /
+      // aria-label has to be read too, or nothing matches and the session
+      // stays open — which then blocks the next call.
+      var label = ((all[i].getAttribute('title') || '') + ' ' +
+                   (all[i].getAttribute('aria-label') || '') + ' ' +
+                   all[i].textContent).trim().toLowerCase();
+      if (!label) continue;
+      if (label.indexOf('mute') > -1) continue;           // never hit mute
+      if (label.indexOf('end') > -1 || label.indexOf('hang') > -1 ||
+          label.indexOf('disconnect') > -1 || label.indexOf('stop') > -1) {
+        return all[i];
+      }
+    }
+    return null;
+  }
+
+  // Replace the widget with a fresh element. Tearing down the custom element
+  // drops the live session, so the next call always starts from a clean state
+  // instead of needing a page refresh.
+  function resetWidget() {
+    var old = document.querySelector('elevenlabs-convai');
+    if (!old || !old.parentNode) return;
+    var fresh = document.createElement('elevenlabs-convai');
+    for (var i = 0; i < old.attributes.length; i++) {
+      fresh.setAttribute(old.attributes[i].name, old.attributes[i].value);
+    }
+    old.parentNode.replaceChild(fresh, old);
   }
 
   function endCall() {
     var btn    = document.getElementById('startBtn');
     var widget = document.querySelector('elevenlabs-convai');
-    if (widget.shadowRoot) {
-      var btns = widget.shadowRoot.querySelectorAll('button');
-      btns.forEach(function(b) {
-        var txt = b.textContent.trim().toLowerCase();
-        if (txt.includes('end') || txt.includes('stop') || txt.includes('close') || txt.includes('disconnect')) {
-          b.click();
-        }
-      });
+
+    if (widget && widget.shadowRoot) {
+      var target = findEndButton(widget.shadowRoot);
+      if (target) target.click();
     }
+
     btn.innerHTML = '&#9654; Start a Call';
     btn.classList.remove('calling');
     btn.onclick  = startCall;
+    btn.disabled = true;
     clearInterval(vadTimer);
     setState('idle');
+
+    // Let the widget close the session cleanly, then rebuild it.
+    setTimeout(function () {
+      resetWidget();
+      btn.disabled = false;
+    }, 700);
   }
 </script>
 
