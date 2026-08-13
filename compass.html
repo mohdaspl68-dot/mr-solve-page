@@ -386,9 +386,7 @@
     </div>
   </div>
 
-  <!-- Hidden ElevenLabs widget -->
-  <elevenlabs-convai agent-id="agent_1001ksn8xc7te9vt8h2nzq4k1xbg"></elevenlabs-convai>
-  <script src="https://elevenlabs.io/convai-widget/index.js" async type="text/javascript"></script>
+  <!-- Compass voice agent is started via the ElevenLabs SDK (module script at end of body) -->
 
   <!-- 5-column feature grid with call card in centre -->
   <div class="features">
@@ -442,69 +440,60 @@
 
 </div>
 
-<script>
-  function startCall() {
-    var btn    = document.getElementById('startBtn');
-    var widget = document.querySelector('elevenlabs-convai');
+<script type="module">
+  import { Conversation } from 'https://cdn.jsdelivr.net/npm/@elevenlabs/client/+esm';
 
-    btn.disabled  = true;
-    btn.innerHTML = '&#9654; Connecting...';
+  const AGENT_ID = 'agent_1001ksn8xc7te9vt8h2nzq4k1xbg';
+  let conversation = null;
+  const btn = () => document.getElementById('startBtn');
 
-    function clickToggle() {
-      if (!widget.shadowRoot) { setTimeout(clickToggle, 200); return; }
-      var toggleBtn = widget.shadowRoot.querySelector('button');
-      if (!toggleBtn)         { setTimeout(clickToggle, 200); return; }
-      toggleBtn.click();
-      setTimeout(clickStartCall, 600);
-    }
-
-    function clickStartCall() {
-      var shadow   = widget.shadowRoot;
-      var attempts = 0;
-      var timer    = setInterval(function() {
-        attempts++;
-        if (attempts > 20) {
-          clearInterval(timer);
-          btn.disabled  = false;
-          btn.innerHTML = '🎤 Start a Call';
-          btn.classList.remove('calling');
-          return;
-        }
-        var allBtns = shadow.querySelectorAll('button');
-        for (var i = 0; i < allBtns.length; i++) {
-          var txt = allBtns[i].textContent.trim().toLowerCase();
-          if (txt.includes('start') || txt.includes('call') || txt.includes('connect')) {
-            allBtns[i].click();
-            clearInterval(timer);
-            btn.innerHTML = '&#9632; End Call';
-            btn.classList.add('calling');
-            btn.onclick  = endCall;
-            btn.disabled = false;
-            return;
-          }
-        }
-      }, 300);
-    }
-
-    clickToggle();
+  function setIdle() {
+    const b = btn(); if (!b) return;
+    b.disabled = false;
+    b.classList.remove('calling');
+    b.innerHTML = '🎤 Start a Call';
+  }
+  function setLive() {
+    const b = btn(); if (!b) return;
+    b.disabled = false;
+    b.classList.add('calling');
+    b.innerHTML = '&#9632; End Call';
   }
 
-  function endCall() {
-    var btn    = document.getElementById('startBtn');
-    var widget = document.querySelector('elevenlabs-convai');
-    if (widget.shadowRoot) {
-      var btns = widget.shadowRoot.querySelectorAll('button');
-      btns.forEach(function(b) {
-        var txt = b.textContent.trim().toLowerCase();
-        if (txt.includes('end') || txt.includes('stop') || txt.includes('close') || txt.includes('disconnect')) {
-          b.click();
+  async function startCall() {
+    // Toggle: if a call is already running, end it.
+    if (conversation) {
+      try { await conversation.endSession(); } catch (e) {}
+      conversation = null; setIdle();
+      return;
+    }
+    const b = btn();
+    try {
+      if (b) { b.disabled = true; b.innerHTML = '&#9654; Connecting...'; }
+      // Request the mic INSIDE the click gesture so browser audio playback unlocks.
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      conversation = await Conversation.startSession({
+        agentId: AGENT_ID,
+        onConnect: () => setLive(),
+        onDisconnect: () => { conversation = null; setIdle(); },
+        onError: (e) => {
+          console.error('Compass error:', e);
+          conversation = null; setIdle();
+          alert('Compass could not connect. Please try again.');
         }
       });
+    } catch (err) {
+      console.error(err);
+      conversation = null; setIdle();
+      if (err && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) {
+        alert('Microphone access is required to talk to Compass. Please allow the microphone and try again.');
+      } else {
+        alert('Compass could not start. Please try again.');
+      }
     }
-    btn.innerHTML = '🎤 Start a Call';
-    btn.classList.remove('calling');
-    btn.onclick  = startCall;
   }
+
+  window.startCall = startCall;
 </script>
 
 </body>
