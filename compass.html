@@ -351,6 +351,31 @@
       .cta { flex-direction: column; text-align: center; }
       .stat-item { padding: 12px 18px; }
     }
+
+    /* Live status strip — shows what Compass is doing during the answer pause */
+    .solve-status { display: none; }
+    .solve-status.on {
+      grid-column: 1 / -1; order: 99; width: 100%; max-width: 620px; margin: 0 auto;
+      background: #161616; border: 1px solid #2a2a2a; border-radius: 8px;
+      padding: 14px 22px; display: flex; align-items: center; gap: 14px;
+      text-align: left; animation: strip-in 0.3s ease-out;
+    }
+    @keyframes strip-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+    .solve-status .st-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #c8102e; box-shadow: 0 0 0 0 rgba(200,16,46,0.5); animation: ping 1.6s infinite; }
+    .solve-status .st-body { min-width: 0; }
+    .solve-status .st-text { font-size: 0.9rem; font-weight: 700; color: #fff; display: block; line-height: 1.4; }
+    .solve-status .st-hint { font-size: 0.76rem; color: #6b7280; display: block; line-height: 1.5; margin-top: 2px; }
+    .solve-status.dots .st-text::after { content: ''; display: inline-block; width: 1.1em; text-align: left; animation: dots 1.4s steps(1, end) infinite; }
+    .solve-status.thinking .st-dot  { background: #f5a623; box-shadow: 0 0 0 0 rgba(245,166,35,0.5); }
+    .solve-status.thinking .st-text { color: #f5a623; }
+    .solve-status.listening .st-dot { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+    .solve-status.speaking  .st-dot { background: #38bdf8; box-shadow: 0 0 0 0 rgba(56,189,248,0.5); }
+    .solve-status.speaking  .st-text{ color: #38bdf8; }
+    .solve-status.error     .st-dot { background: #ef4444; animation: none; }
+    .solve-status.error     .st-text{ color: #ef4444; }
+    @keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 70% { box-shadow: 0 0 0 8px rgba(0,0,0,0); opacity: 0.85; } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); opacity: 1; } }
+    @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+    @media (prefers-reduced-motion: reduce) { .solve-status .st-dot { animation: none; } .solve-status.dots .st-text::after { content: '...'; animation: none; } }
   </style>
 </head>
 <body>
@@ -413,6 +438,15 @@
       </button>
     </div>
 
+    <!-- Live status strip: shows what Compass is doing during the answer pause -->
+    <div class="solve-status" id="solveStatus" role="status" aria-live="polite">
+      <span class="st-dot"></span>
+      <span class="st-body">
+        <span class="st-text" id="solveStatusText"></span>
+        <span class="st-hint" id="solveStatusHint"></span>
+      </span>
+    </div>
+
     <div class="feat">
       <span class="ico">🏗️</span>
       <h3>Work at Height</h3>
@@ -447,48 +481,64 @@
   let conversation = null;
   const btn = () => document.getElementById('startBtn');
 
-  function setIdle() {
-    const b = btn(); if (!b) return;
-    b.disabled = false;
-    b.classList.remove('calling');
-    b.innerHTML = '🎤 Start a Call';
-  }
-  function setLive() {
-    const b = btn(); if (!b) return;
-    b.disabled = false;
-    b.classList.add('calling');
-    b.innerHTML = '&#9632; End Call';
+  // ---- Live status strip: shows what Compass is doing during the answer pause ----
+  const statusEl  = document.getElementById('solveStatus');
+  const statusTxt = document.getElementById('solveStatusText');
+  const statusHnt = document.getElementById('solveStatusHint');
+  const STATES = {
+    connecting:   { cls: 'dots',          text: 'Connecting you to Compass',  hint: 'Opening a secure voice line — allow microphone access if asked.' },
+    listening:    { cls: 'listening',     text: 'Compass is listening',       hint: 'Go ahead — ask anything about fall protection, PPE or KStrong products.' },
+    thinking:     { cls: 'thinking dots', text: 'Compass is thinking',        hint: 'Searching the KStrong safety knowledge base — this takes a few seconds.' },
+    thinkingLong: { cls: 'thinking dots', text: 'Still working on it',        hint: 'Checking the standards and product data to get this right — hold on.' },
+    speaking:     { cls: 'speaking',      text: 'Compass is answering',       hint: 'Start speaking any time to interrupt or ask a follow-up.' },
+    error:        { cls: 'error',         text: 'Could not connect the call', hint: 'Please check your microphone permission and press Start a Call again.' }
+  };
+  let uiState = 'idle', longTimer = null;
+  function setState(next) {
+    if (uiState === next) return;
+    uiState = next;
+    clearTimeout(longTimer);
+    if (next === 'idle') { if (statusEl) statusEl.className = 'solve-status'; return; }
+    const st = STATES[next] || STATES.listening;
+    if (statusEl)  statusEl.className = 'solve-status on ' + st.cls;
+    if (statusTxt) statusTxt.textContent = st.text;
+    if (statusHnt) statusHnt.textContent = st.hint;
+    if (next === 'thinking') {
+      longTimer = setTimeout(() => { if (uiState === 'thinking') setState('thinkingLong'); }, 4000);
+    }
   }
 
+  function setIdleBtn() { const b = btn(); if (b) { b.disabled = false; b.classList.remove('calling'); b.innerHTML = '🎤 Start a Call'; } }
+  function setLiveBtn() { const b = btn(); if (b) { b.disabled = false; b.classList.add('calling'); b.innerHTML = '&#9632; End Call'; } }
+
   async function startCall() {
-    // Toggle: if a call is already running, end it.
     if (conversation) {
       try { await conversation.endSession(); } catch (e) {}
-      conversation = null; setIdle();
+      conversation = null; setIdleBtn(); setState('idle');
       return;
     }
     const b = btn();
     try {
       if (b) { b.disabled = true; b.innerHTML = '&#9654; Connecting...'; }
-      // Request the mic INSIDE the click gesture so browser audio playback unlocks.
+      setState('connecting');
       await navigator.mediaDevices.getUserMedia({ audio: true });
       conversation = await Conversation.startSession({
         agentId: AGENT_ID,
-        onConnect: () => setLive(),
-        onDisconnect: () => { conversation = null; setIdle(); },
-        onError: (e) => {
-          console.error('Compass error:', e);
-          conversation = null; setIdle();
-          alert('Compass could not connect. Please try again.');
-        }
+        onConnect: () => { setLiveBtn(); setState('listening'); },
+        onDisconnect: () => { conversation = null; setIdleBtn(); setState('idle'); },
+        onError: (e) => { console.error('Compass error:', e); conversation = null; setIdleBtn(); setState('error'); },
+        onModeChange: (m) => {
+          const mode = m && m.mode;
+          if (mode === 'speaking') setState('speaking');
+          else if (mode === 'listening') { if (uiState !== 'thinking' && uiState !== 'thinkingLong') setState('listening'); }
+        },
+        onMessage: (m) => { if (m && m.source === 'user') setState('thinking'); }
       });
     } catch (err) {
       console.error(err);
-      conversation = null; setIdle();
+      conversation = null; setIdleBtn(); setState('error');
       if (err && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) {
         alert('Microphone access is required to talk to Compass. Please allow the microphone and try again.');
-      } else {
-        alert('Compass could not start. Please try again.');
       }
     }
   }
